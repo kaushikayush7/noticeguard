@@ -1,4 +1,7 @@
 ﻿import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import httpx
 from dotenv import load_dotenv
 
@@ -7,10 +10,11 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
-ALERT_PHONE_NUMBER = os.getenv("ALERT_PHONE_NUMBER")
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+ALERT_EMAIL = os.getenv("ALERT_EMAIL")
 
 def send_telegram(row: dict) -> bool:
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
@@ -25,37 +29,37 @@ def send_telegram(row: dict) -> bool:
     except httpx.HTTPError:
         return False
 
-def send_sms(row: dict) -> bool:
-    if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER and ALERT_PHONE_NUMBER):
+def send_email(row: dict, to_email: str = None) -> bool:
+    recipient = to_email or ALERT_EMAIL
+    if not (SMTP_USER and SMTP_PASSWORD and recipient):
         return False
     
-    badge = "Verified" if row.get("verified") else "Unverified"
-    body = (f"NoticeGuard Alert: {row.get('exam') or row.get('title')} "
-            f"[{row.get('notice_type')}] - {row.get('summary')} ({badge}) "
+    badge = "Verified official source" if row.get("verified") else "Unverified source"
+    subject = f"NoticeGuard Alert: {row.get('exam') or row.get('title')} [{row.get('notice_type')}]"
+    body = (f"Exam/Title: {row.get('exam') or row.get('title')}\n"
+            f"Notice Type: {row.get('notice_type')}\n"
+            f"Summary: {row.get('summary')}\n"
+            f"Published Date: {row.get('published_date')}\n"
+            f"Status: {badge}\n\n"
             f"Link: {row.get('pdf_url') or row.get('source_url')}")
     
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
+    msg = MIMEMultipart()
+    msg["From"] = SMTP_USER
+    msg["To"] = recipient
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
     
     try:
-        r = httpx.post(
-            url,
-            data={
-                "To": ALERT_PHONE_NUMBER,
-                "From": TWILIO_PHONE_NUMBER,
-                "Body": body
-            },
-            auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
-            timeout=10
-        )
-        return r.status_code in [200, 201]
-    except httpx.HTTPError:
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception:
         return False
 
-def send_alerts(row: dict) -> dict:
-    """Dispatches both Telegram and SMS notifications."""
+def send_alerts(row: dict, to_email: str = None) -> dict:
+    """Dispatches both Telegram and Email notifications simultaneously."""
     return {
         "telegram": send_telegram(row),
-        "sms": send_sms(row)
+        "email": send_email(row, to_email=to_email)
     }
-
-# Notification module finalized for HackIIITD 2026
