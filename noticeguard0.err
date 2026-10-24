@@ -1,0 +1,9 @@
+/COM,ANSYS RELEASE 2026 R1           BUILD 26.1      UP20260202       16:52:40
+
+ *** ERROR ***                           ELAPSED TIME =       8.420   TIME= 16:52:43
+ Data file C:\noticeguard\noticeguard.db has incorrect format, is        
+ missing READ/WRITE permission, or is empty for RESUME.                  
+
+ *** WARNING ***                         ELAPSED TIME =       8.420   TIME= 16:52:43
+ WHILE PROCESSING FILE BASED INPUT (/INPUT OR MACRO) AN ERROR HAS        
+ OCCURRED.  SHOULD INPUT PROCESSING BE SUSPENDED?                        
