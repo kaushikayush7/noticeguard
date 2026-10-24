@@ -1,6 +1,9 @@
 ﻿import sqlite3
 import httpx
 import os
+import hashlib
+import json
+from datetime import datetime
 from app.sources import SOURCES
 from app.notify import send_alerts
 from dotenv import load_dotenv
@@ -12,6 +15,7 @@ DB_PATH = "noticeguard.db"
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # Table for individual exam notices
     c.execute('''
         CREATE TABLE IF NOT EXISTS notices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,6 +30,14 @@ def init_db():
             UNIQUE(exam_id, title, published_date)
         )
     ''')
+    # Table for detecting page content changes per source
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS page_states (
+            source_id TEXT PRIMARY KEY,
+            content_hash TEXT,
+            last_checked TEXT
+        )
+    ''')
     try:
         c.execute("ALTER TABLE notices ADD COLUMN exam_id TEXT;")
     except sqlite3.OperationalError:
@@ -38,7 +50,7 @@ def get_mock_notices(source: dict) -> list:
     return [
         {
             "title": f"Official Notification Update for {source['name']} 2026",
-            "date": "2026-06-01",
+            "date": datetime.now().strftime("%Y-%m-%d"),
             "type": "Notification",
             "summary": f"Latest schedule and guidelines update published for {source['name']}.",
             "url": source["url"]
@@ -80,15 +92,39 @@ def run_monitor():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
-    print("Starting NoticeGuard monitoring loop...")
+    print("Starting NoticeGuard monitoring & page change detection loop...")
     for source in SOURCES:
         try:
             print(f"\nChecking source: {source['name']}...")
             items = fetch_notices_via_tinyfish(source)
             
+            # Compute hash of the retrieved items to detect page changes
+            serialized_items = json.dumps(items, sort_keys=True)
+            current_hash = hashlib.sha256(serialized_items.encode("utf-8")).hexdigest()
+            
+            # Check previous page state
+            c.execute("SELECT content_hash FROM page_states WHERE source_id = ?", (source["id"],))
+            row = c.fetchone()
+            previous_hash = row[0] if row else None
+            
+            page_changed = (previous_hash != current_hash)
+            
+            if page_changed:
+                print(f"   -> 🔄 [PAGE CHANGE DETECTED] New updates found on {source['name']} portal!")
+                # Update page state in DB
+                c.execute('''
+                    INSERT INTO page_states (source_id, content_hash, last_checked)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(source_id) DO UPDATE SET content_hash = ?, last_checked = ?
+                ''', (source["id"], current_hash, datetime.now().isoformat(), current_hash, datetime.now().isoformat()))
+                conn.commit()
+            else:
+                print(f"   -> [NO CHANGE] Portal content is identical to last check.")
+
+            # Process individual notices if page changed or new items appear
             for item in items:
                 title = item.get("title")
-                date = item.get("date", "2026-06-01")
+                date = item.get("date", datetime.now().strftime("%Y-%m-%d"))
                 url = item.get("url", source["url"])
                 notice_type = item.get("type", "notification")
                 
@@ -111,27 +147,28 @@ def run_monitor():
                     ))
                     conn.commit()
                     
-                    notice_row = {
-                        "exam": source["name"],
-                        "notice_type": notice_type,
-                        "summary": item.get("summary", title),
-                        "published_date": date,
-                        "verified": True,
-                        "pdf_url": url,
-                        "source_url": url
-                    }
-                    send_alerts(notice_row)
-                    print(f"   -> [SUCCESS] Alert dispatched for: {title}")
+                    if page_changed:
+                        notice_row = {
+                            "exam": f"{source['name']} (Page Updated)",
+                            "notice_type": notice_type,
+                            "summary": item.get("summary", title),
+                            "published_date": date,
+                            "verified": True,
+                            "pdf_url": url,
+                            "source_url": url
+                        }
+                        send_alerts(notice_row)
+                        print(f"      -> [ALERT DISPATCHED] Change alert sent for: {title}")
                     
                 except sqlite3.IntegrityError:
-                    print(f"   -> Notice already exists in database (skipped)")
+                    pass
                     
         except Exception as source_err:
             print(f"-> Error processing {source['name']}: {source_err}. Skipping to next source.")
             continue
                 
     conn.close()
-    print("\nMonitoring loop completed successfully across all sources.")
+    print("\nMonitoring and page change detection loop completed successfully.")
 
 if __name__ == "__main__":
     run_monitor()
