@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NoticeGuard</title>
+<style>
+:root{--navy:#0B2545;--saffron:#F28C28;--bg:#F3F5F9;--card:#fff;--muted:#5B6B86;--green:#2E7D4F}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1624;--card:#17213a;--navy:#e8eef7;--muted:#9fb0cc}}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Calibri,sans-serif;background:var(--bg);color:var(--navy)}
+main{max-width:430px;margin:0 auto;padding:20px 16px 40px}
+h1{margin:0;font-size:28px}h1 span{color:var(--saffron)}.sub{color:var(--muted);margin:4px 0 14px;font-size:14px}
+.pills{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
+.pills button{border:1px solid #d5dbe6;background:var(--card);color:var(--navy);border-radius:999px;padding:6px 12px;font-size:12px;white-space:nowrap;cursor:pointer}
+.pills button.on{background:var(--navy);color:var(--bg)}
+.card{background:var(--card);border:1px solid #dde3ec;border-radius:14px;padding:14px;margin-top:12px}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.title{font-weight:700;font-size:14px}.sum{font-size:13px;color:var(--muted);margin:6px 0 8px}
+.badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:#E8EEF7;color:#0B2545;white-space:nowrap}
+.meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.ok{color:var(--green);font-weight:600}.bad{color:#C0392B;font-weight:600}
+.btn{margin-top:14px;width:100%;padding:12px;border:0;border-radius:12px;background:var(--saffron);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+a{color:inherit}
+</style></head>
+<body><main>
+<h1>Notice<span>Guard</span></h1>
+<p class="sub">Official updates, without the noise.</p>
+<div class="pills" id="pills"></div>
+<div id="feed"></div>
+<button class="btn" id="refresh">Check for new notices</button>
+</main>
+<script>
+const TYPES=["all","new_notification","corrigendum","date_change","answer_key","shortlisting","vacancy","result","admit_card"];
+let cur="all";
+const label=t=>t.replace("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function pills(){document.getElementById("pills").innerHTML=TYPES.map(t=>`<button class="${t===cur?"on":""}" data-t="${t}">${label(t)}</button>`).join("")}
+async function load(){
+  const r=await fetch("/api/alerts?type="+cur);const rows=await r.json();
+  document.getElementById("feed").innerHTML=rows.length?rows.map(n=>{
+    const host=(()=>{try{return new URL(n.source_url).hostname.replace("www.","")}catch{return ""}})();
+    const link=n.pdf_url?`<a href="${esc(n.pdf_url)}" target="_blank" rel="noopener">View PDF</a>`:"";
+    return `<div class="card"><div class="row"><div class="title">${esc(n.exam||n.title)}</div><span class="badge">${label(n.notice_type)}</span></div>
+    <div class="sum">${esc(n.summary)}</div>
+    <div class="meta"><span class="${n.verified?"ok":"bad"}">${n.verified?"Verified official source - "+esc(host):"Unverified source"}</span><span>${esc(n.published_date)} ${link}</span></div></div>`}).join(""):'<p class="sub">No notices yet.</p>';
+}
+document.getElementById("pills").onclick=e=>{if(e.target.dataset.t){cur=e.target.dataset.t;pills();load()}};
+document.getElementById("refresh").onclick=async()=>{const r=await(await fetch("/api/refresh",{method:"POST"})).json();alert(r.new+" new notice(s)");load()};
+pills();load();
+</script></body></html>
