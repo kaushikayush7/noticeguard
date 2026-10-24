@@ -1,6 +1,7 @@
 ﻿from fastapi import APIRouter, Request, Form, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 import sqlite3
+import os
 from app.sources import SOURCES
 
 router = APIRouter()
@@ -53,12 +54,30 @@ def get_dashboard(request: Request, chat_id: str = None):
         </head>
         <body class="bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 min-h-screen flex items-center justify-center p-6">
             <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 border border-gray-100">
-                <div class="text-center mb-8">
+                <div class="text-center mb-6">
                     <span class="text-4xl">🛡️</span>
                     <h1 class="text-2xl font-extrabold text-gray-900 mt-2">NoticeGuard Portal</h1>
                     <p class="text-sm text-gray-500 mt-1">Real-time AI Exam Intelligence & Alert System</p>
                 </div>
-                <form action="/login" method="POST" class="space-y-5">
+
+                <!-- Telegram Bot Quick Steps Box -->
+                <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 text-xs text-indigo-900 space-y-2">
+                    <p class="font-bold text-indigo-950 uppercase tracking-wide">⚡ Quick Setup for Telegram Alerts:</p>
+                    <div class="flex items-center space-x-2">
+                        <span>1.</span>
+                        <a href="https://t.me/NoticeGuardBot" target="_blank" class="bg-indigo-600 text-white px-2.5 py-1 rounded font-semibold hover:bg-indigo-700 transition inline-flex items-center gap-1">
+                            🤖 Open @NoticeGuardBot & Press /start
+                        </a>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span>2.</span>
+                        <a href="https://t.me/userinfobot" target="_blank" class="text-indigo-700 font-semibold underline hover:text-indigo-900">
+                            Find your Chat ID via @userinfobot
+                        </a>
+                    </div>
+                </div>
+
+                <form action="/login" method="POST" class="space-y-4">
                     <div>
                         <label class="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">Full Name</label>
                         <input type="text" name="name" required placeholder="e.g. Ayush Kaushik" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:outline-none text-sm">
@@ -70,9 +89,8 @@ def get_dashboard(request: Request, chat_id: str = None):
                     <div>
                         <label class="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1">Telegram Chat ID</label>
                         <input type="text" name="chat_id" required placeholder="e.g. 8608954908" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-600 focus:outline-none text-sm">
-                        <p class="text-xs text-gray-400 mt-1">Get your ID from @userinfobot on Telegram</p>
                     </div>
-                    <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/30">Continue to Exam Selection</button>
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/30 mt-2">Continue to Exam Selection</button>
                 </form>
             </div>
         </body>
@@ -86,7 +104,7 @@ def get_dashboard(request: Request, chat_id: str = None):
 
     selected_exams = [row['exam_id'] for row in c.execute("SELECT exam_id FROM aspirant_exams WHERE aspirant_id = ?", (aspirant['id'],)).fetchall()]
 
-    # 2. Show Exam Selection Page if no exams picked yet
+    # 2. Show Exam Selection Page
     if not selected_exams:
         sources_html = ""
         for src in SOURCES:
@@ -126,7 +144,7 @@ def get_dashboard(request: Request, chat_id: str = None):
         </html>
         """)
 
-    # 3. Show Personalized Dashboard (matching your requested UI style)
+    # 3. Show Dashboard
     placeholders = ','.join(['?'] * len(selected_exams))
     notices = c.execute(f"SELECT * FROM notices WHERE exam_id IN ({placeholders}) ORDER BY id DESC LIMIT 30", selected_exams).fetchall()
     
@@ -159,7 +177,7 @@ def get_dashboard(request: Request, chat_id: str = None):
                     <span class="text-2xl md:text-3xl">🛡️</span>
                     <div>
                         <h1 class="text-xl md:text-2xl font-bold">NoticeGuard</h1>
-                        <p class="text-xs text-indigo-200">Automated Exam Intelligence & Change Detection ({aspirant['name']})</p>
+                        <p class="text-xs text-indigo-200">Automated Exam Intelligence ({aspirant['name']})</p>
                     </div>
                 </div>
                 <div class="flex items-center space-x-3">
