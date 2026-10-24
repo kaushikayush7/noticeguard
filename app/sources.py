@@ -23,3 +23,6 @@ SOURCES = [
         ),
     },
 ]
+
+# Testing only: run SSC alone to save credits. Delete this line to run all sources.
+SOURCES = [s for s in SOURCES if s["id"] == "ssc"]

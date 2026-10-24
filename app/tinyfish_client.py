@@ -7,7 +7,7 @@ _SCHEMA = {
     "type": "object",
     "properties": {"notices": {"type": "array", "items": {"type": "object", "properties": {
         "title": {"type": "string"}, "published_date": {"type": "string"},
-        "exam_name": {"type": ["string", "null"]}, "pdf_url": {"type": ["string", "null"]}},
+        "exam_name": {"type": "string", "nullable": True}, "pdf_url": {"type": "string", "nullable": True}},
         "required": ["title", "published_date"]}}},
     "required": ["notices"],
 }

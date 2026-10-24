@@ -37,7 +37,7 @@ async function load(){
   const r=await fetch("/api/alerts?type="+cur);const rows=await r.json();
   document.getElementById("feed").innerHTML=rows.length?rows.map(n=>{
     const host=(()=>{try{return new URL(n.source_url).hostname.replace("www.","")}catch{return ""}})();
-    const link=n.pdf_url?`<a href="${esc(n.pdf_url)}" target="_blank" rel="noopener">View PDF</a>`:"";
+    const link=`<a href="${esc(n.pdf_url||n.source_url)}" target="_blank" rel="noopener">${n.pdf_url?"View PDF":"View on site"}</a>`;
     return `<div class="card"><div class="row"><div class="title">${esc(n.exam||n.title)}</div><span class="badge">${label(n.notice_type)}</span></div>
     <div class="sum">${esc(n.summary)}</div>
     <div class="meta"><span class="${n.verified?"ok":"bad"}">${n.verified?"Verified official source - "+esc(host):"Unverified source"}</span><span>${esc(n.published_date)} ${link}</span></div></div>`}).join(""):'<p class="sub">No notices yet.</p>';
