@@ -57,3 +57,5 @@ def send_alerts(row: dict) -> dict:
         "telegram": send_telegram(row),
         "sms": send_sms(row)
     }
+
+# Notification module finalized for HackIIITD 2026
